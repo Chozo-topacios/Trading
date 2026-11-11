@@ -3,9 +3,15 @@
 [general]
 # paper           -> DEMO: bróker simulado local (recomendado para empezar)
 # schwab_dry_run  -> lee cuenta/posiciones reales de Schwab, construye las órdenes y NO las envía
-# live            -> envía órdenes REALES (requiere live_trading_enabled y --confirm-live)
+# schwab_live     -> órdenes REALES en Schwab ("live" es un alias)
+# ibkr_paper      -> DEMO real: cuenta paper de Interactive Brokers (TWS / IB Gateway)
+# ibkr_live       -> órdenes REALES en IBKR
+# mt5_demo        -> DEMO real: cuenta demo de MetaTrader 5 (Exness u otro bróker MT5)
+# mt5_live        -> órdenes REALES en MT5
+# Los modos *_live requieren live_trading_enabled = true en su sección Y --confirm-live.
 mode = "paper"
-# Fuente de velas diarias: "schwab" (API Market Data), "csv" (data/<SYM>_D1.csv) o "yfinance"
+# Fuente de velas diarias: "csv" (data/<SYM>_D1.csv), "yfinance", "schwab",
+# "ibkr" o "mt5" (estas dos leen del bróker conectado; solo con modos ibkr_* / mt5_*)
 data_source = "csv"
 data_dir = "data"
 state_dir = "state"
@@ -39,3 +45,19 @@ strategy = "connors_rsi2"
 account_number = ""            # vacío = primera cuenta vinculada
 token_path = "tokens/schwab_token.json"
 live_trading_enabled = false   # protección: déjalo en false hasta validar en demo
+
+[ibkr]
+host = "127.0.0.1"
+port = 7497                    # TWS paper 7497 | TWS real 7496 | Gateway paper 4002 | Gateway real 4001
+client_id = 17
+account = ""                   # vacío = primera cuenta de la sesión (paper empieza por "DU")
+order_type = "MOO"             # MOO = Market-on-Open (apertura) | MKT = a mercado DAY
+live_trading_enabled = false
+
+[mt5]
+# Credenciales en variables de entorno: MT5_LOGIN, MT5_PASSWORD, MT5_SERVER (p. ej. "Exness-MT5Trial")
+# Los símbolos de [[portfolio]] deben ser los del bróker: p. ej. "USTEC" (o "USTECm") en Exness.
+terminal_path = ""             # vacío = terminal por defecto
+magic = 20250202               # identifica las posiciones abiertas por este bot
+deviation = 20                 # slippage máximo en puntos
+live_trading_enabled = false

@@ -10,7 +10,7 @@ import pandas as pd
 
 from tis_trading import data as data_mod
 from tis_trading.backtest import run_backtest
-from tis_trading.engine import Config, Engine, build_broker
+from tis_trading.engine import MODES, Config, Engine, build_broker
 from tis_trading.strategies import STRATEGIES, get_strategy
 
 
@@ -71,7 +71,10 @@ def cmd_run(args, cfg: Config):
         cfg.validate()
     broker, client = build_broker(cfg, confirm_live=args.confirm_live)
     print(f"Modo: {cfg.mode.upper()} | datos: {cfg.data_source} | bróker: {broker.name}")
-    report = Engine(cfg, broker, client).run_once()
+    try:
+        report = Engine(cfg, broker, client).run_once()
+    finally:
+        broker.close()
     _print_table(report)
 
 
@@ -112,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("auth", help="Autoriza la app de Schwab (OAuth) y guarda el token")
 
     r = sub.add_parser("run", help="Ejecuta el ciclo diario (señales + órdenes)")
-    r.add_argument("--mode", choices=["paper", "schwab_dry_run", "live"])
+    r.add_argument("--mode", choices=[*MODES, "live"])
     r.add_argument("--confirm-live", action="store_true", help="Necesario para enviar órdenes reales")
 
     sub.add_parser("status", help="Estado de la cuenta demo")

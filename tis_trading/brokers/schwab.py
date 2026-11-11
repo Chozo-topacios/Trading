@@ -196,6 +196,9 @@ class SchwabBroker(Broker):
             self._acct = self.client.account(self.account_hash)["securitiesAccount"]
         return self._acct
 
+    def price_history_daily(self, symbol: str) -> pd.DataFrame:
+        return self.client.price_history_daily(symbol)
+
     def get_cash(self) -> float:
         bal = self._account().get("currentBalances", {})
         return float(bal.get("cashAvailableForTrading", bal.get("cashBalance", 0.0)))

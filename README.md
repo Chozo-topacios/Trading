@@ -1,16 +1,23 @@
-# Trading sistemático: TIS · RSI2 + Charles Schwab
+# Trading sistemático: TIS · RSI2 + Schwab, Interactive Brokers y MetaTrader 5
 
 Bot en Python que ejecuta la estrategia **TIS · RSI2 Mean Reversion** (Mariel Lang · Trade It Simple)
 y otras estrategias clásicas de reversión a la media, con:
 
 - **Backtester** (señal al cierre → ejecución en la apertura siguiente, costes en bps).
-- **Modo DEMO** (bróker simulado local) usando datos de mercado de Schwab, CSV o yfinance.
-- **Modo `schwab_dry_run`**: lee tu cuenta real de Schwab y construye las órdenes **sin enviarlas**.
-- **Modo `live`**: envía órdenes reales a Schwab. Está bloqueado por doble seguro.
+- **Tres brókers**: Charles Schwab, Interactive Brokers (IBKR) y MetaTrader 5 (Exness u otro).
+- **Modos demo**, y modos reales bloqueados por doble seguro.
 
-> ⚠️ **La API de Schwab no ofrece cuenta paper/sandbox.** paperMoney de thinkorswim no es accesible
-> por la API. Por eso el "modo demo" simula las órdenes localmente con la misma lógica de ejecución
-> que el backtest (apertura siguiente + 5 bps), pero puede usar **velas reales de Schwab**.
+| Modo | Bróker | ¿Quién ejecuta las órdenes? | Dinero real |
+|---|---|---|---|
+| `paper` | ninguno | simulador local del bot (apertura siguiente + 5 bps) | No |
+| `schwab_dry_run` | Schwab | nadie: se construyen y registran, no se envían | No |
+| `ibkr_paper` | IBKR | **simulador de IBKR** (cuenta paper `DU…`) | No |
+| `mt5_demo` | MT5 / Exness | **servidor demo del bróker** | No |
+| `schwab_live`, `ibkr_live`, `mt5_live` | el que corresponda | el bróker | **Sí** |
+
+> ⚠️ **La API de Schwab no ofrece cuenta paper/sandbox** (paperMoney de thinkorswim no es accesible
+> por la API). Para Schwab el demo es el simulador local `paper`, que puede usar velas reales de Schwab.
+> IBKR y MT5 sí tienen cuentas demo reales accesibles por API.
 
 ## Estrategias
 
@@ -111,14 +118,82 @@ Lee el saldo y las posiciones reales y registra las órdenes que **enviaría** e
 
 ## 5. Real (solo cuando el demo esté validado)
 
-Requiere **las dos** condiciones: `live_trading_enabled = true` en `[schwab]` y el flag `--confirm-live`.
+Requiere **las dos** condiciones: `live_trading_enabled = true` en la sección del bróker (`[schwab]`, `[ibkr]` o `[mt5]`) y el flag `--confirm-live`.
 
 ```bash
-python -m tis_trading run --mode live --confirm-live
+python -m tis_trading run --mode schwab_live --confirm-live
 ```
 
 Las órdenes son a mercado `DAY`. Si se envían fuera de horario, quedan en cola para la apertura,
 que es justo lo que piden las reglas.
+
+## 6. Interactive Brokers (cuenta paper)
+
+1. Activa la cuenta paper en el Client Portal: *Settings → Paper Trading Account*. Tendrá usuario
+   propio y un número de cuenta que empieza por `DU`.
+2. Instala TWS o IB Gateway, inicia sesión **con el usuario paper** y activa la API:
+   *Configure → API → Settings → Enable ActiveX and Socket Clients*.
+3. (Opcional) Para tener datos en tiempo real en paper, comparte las suscripciones de tu cuenta real
+   (*Settings → Paper Trading Account → Share real-time market data*). Sin eso hay datos con retraso,
+   suficiente para una estrategia diaria.
+4. Instala la librería y configura `[ibkr]` (puerto 7497 en TWS o 4002 en Gateway):
+
+```bash
+pip install ib_async
+```
+
+5. En `config.toml`: `mode = "ibkr_paper"`, `data_source = "ibkr"` y `symbol = "QQQ"`. Luego:
+
+```bash
+python -m tis_trading run --mode ibkr_paper
+```
+
+- Las órdenes son **Market-on-Open** (`MKT` con `tif=OPG`): se ejecutan en la subasta de apertura,
+  como piden las reglas. Hay que enviarlas antes de las ~9:28 ET; programar el bot a las 16:15 ET cumple.
+- El bot **se niega a operar** en `ibkr_paper` si la cuenta conectada no es `DU…`.
+- IB Gateway se desconecta una vez al día. Para dejarlo desatendido usa
+  [IBC](https://github.com/IbcAlpha/IBC), que inicia sesión automáticamente.
+
+## 7. MetaTrader 5 / Exness (cuenta demo)
+
+1. Abre una cuenta **demo MT5** en Exness (gratis, sin depósito) e instala el terminal MetaTrader 5.
+2. En MT5: *Herramientas → Opciones → Asesores Expertos → Permitir trading algorítmico*.
+3. La librería oficial **solo funciona en Windows**, con el terminal abierto (en Mac o Linux necesitas
+   Wine o una máquina virtual con Windows):
+
+```bash
+pip install MetaTrader5
+```
+
+4. Credenciales en variables de entorno (o deja el terminal con la sesión iniciada):
+
+```bash
+set MT5_LOGIN=12345678
+set MT5_PASSWORD=...
+set MT5_SERVER=Exness-MT5Trial
+```
+
+5. En `config.toml`: `mode = "mt5_demo"`, `data_source = "mt5"` y usa **el símbolo del bróker**,
+   por ejemplo `symbol = "USTEC"` (Nasdaq 100; en cuentas Standard puede ser `USTECm`). Luego:
+
+```bash
+python -m tis_trading run --mode mt5_demo
+```
+
+- El bot **se niega a operar** en `mt5_demo` si la cuenta conectada no es demo.
+- El tamaño se calcula en **lotes** con el valor del tick de cada símbolo, se redondea al paso de
+  volumen y se reduce si no hay margen libre suficiente.
+- Solo gestiona las posiciones abiertas con su número mágico (`magic`): no toca tus operaciones manuales.
+- Las órdenes se ejecutan **al momento** (el CFD cotiza casi 23 h). Ejecuta el bot justo después del
+  cambio de vela diaria del servidor.
+
+**Diferencias con QQQ que debes conocer:** operas CFDs, no el ETF. Las velas diarias se cierran
+según la hora del servidor, así que las señales no coinciden exactamente con las del research de TIS.
+Además hay apalancamiento, spread y **swap** por cada noche con la posición abierta. Haz el backtest con
+datos del propio bróker antes de fiarte de los resultados de QQQ.
+
+> Alternativa sin Python: el research de Mariel incluye el robot `TIS_RSI2_MeanReversion.mq5`, que
+> puedes cargar directamente en MT5 y probar con su Strategy Tester.
 
 ## Estructura
 
@@ -131,6 +206,8 @@ tis_trading/
   engine.py       ciclo diario + configuración + bloqueo del modo live
   brokers/paper.py   bróker demo local
   brokers/schwab.py  OAuth, market data, cuentas y órdenes de Schwab
+  brokers/ibkr.py    Interactive Brokers (ib_async): datos, cuenta, órdenes MOO
+  brokers/mt5.py     MetaTrader 5 / Exness: datos, cuenta, lotes, órdenes
 tests/            pytest
 ```
 

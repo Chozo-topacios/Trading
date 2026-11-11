@@ -38,8 +38,11 @@ def load_yfinance(symbol: str, start: str = "2000-01-01") -> pd.DataFrame:
 
 
 def load(symbol: str, source: str = "csv", data_dir: str | Path = "data",
-         schwab_client=None) -> pd.DataFrame:
-    """Devuelve velas diarias de ``symbol`` según ``source`` (csv | yfinance | schwab)."""
+         client=None) -> pd.DataFrame:
+    """Velas diarias de ``symbol`` según ``source`` (csv | yfinance | schwab | ibkr | mt5).
+
+    Para schwab / ibkr / mt5, ``client`` es el objeto con ``price_history_daily``.
+    """
     if source == "csv":
         path = Path(data_dir) / f"{symbol}_D1.csv"
         if not path.exists():
@@ -49,8 +52,8 @@ def load(symbol: str, source: str = "csv", data_dir: str | Path = "data",
         return load_csv(path)
     if source == "yfinance":
         return load_yfinance(symbol)
-    if source == "schwab":
-        if schwab_client is None:
-            raise ValueError("source=schwab requiere un SchwabClient autenticado")
-        return schwab_client.price_history_daily(symbol)
+    if source in ("schwab", "ibkr", "mt5", "broker"):
+        if client is None:
+            raise ValueError(f"source={source} requiere una conexión activa con el bróker")
+        return normalize(client.price_history_daily(symbol).reset_index())
     raise ValueError(f"Fuente de datos desconocida: {source}")
