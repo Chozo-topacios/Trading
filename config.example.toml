@@ -1,0 +1,41 @@
+# Copia este archivo a config.toml (ignorado por git) y ajústalo.
+
+[general]
+# paper           -> DEMO: bróker simulado local (recomendado para empezar)
+# schwab_dry_run  -> lee cuenta/posiciones reales de Schwab, construye las órdenes y NO las envía
+# live            -> envía órdenes REALES (requiere live_trading_enabled y --confirm-live)
+mode = "paper"
+# Fuente de velas diarias: "schwab" (API Market Data), "csv" (data/<SYM>_D1.csv) o "yfinance"
+data_source = "csv"
+data_dir = "data"
+state_dir = "state"
+initial_capital = 100000   # capital de la cuenta demo
+cost_bps = 5               # comisión+slippage por lado (como el research TIS)
+
+[risk]
+mode = "risk"          # "risk" (1 % vs stop virtual ATR) o "fraction" (% del capital)
+risk_pct = 0.01
+atr_period = 14
+atr_mult = 2.0
+fraction = 1.0
+max_position_pct = 0.5 # máximo 50 % del capital por posición
+use_stop = false       # las reglas TIS no usan stop de precio
+
+[[portfolio]]
+symbol = "QQQ"
+strategy = "tis_rsi2"
+# params = { rsi_entry = 15, sma_period = 200, green_bars = 2 }
+
+[[portfolio]]
+symbol = "SPY"
+strategy = "connors_rsi2"
+
+# [[portfolio]]
+# symbol = "IWM"
+# strategy = "double7"
+
+[schwab]
+# Las credenciales van en variables de entorno: SCHWAB_APP_KEY, SCHWAB_APP_SECRET, SCHWAB_CALLBACK_URL
+account_number = ""            # vacío = primera cuenta vinculada
+token_path = "tokens/schwab_token.json"
+live_trading_enabled = false   # protección: déjalo en false hasta validar en demo
